@@ -1,0 +1,388 @@
+name: Build GlassPulse APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/glasspulse-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK & Create Clean GlassPulse Project
+        run: |
+          mkdir -p GlassPulse/app/src/main/java/com/hasan/glasspulse
+          mkdir -p GlassPulse/app/src/main/res/values
+
+          cat << 'EOF' > GlassPulse/settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "GlassPulse"
+          include(":app")
+          EOF
+
+          cat << 'EOF' > GlassPulse/build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat << 'EOF' > GlassPulse/gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat << 'EOF' > GlassPulse/app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.hasan.glasspulse"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.hasan.glasspulse"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.14"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+              implementation("androidx.activity:activity-compose:1.9.1")
+              implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+          }
+          EOF
+
+          cat << 'EOF' > GlassPulse/app/proguard-rules.pro
+          # Add project specific ProGuard rules here.
+          EOF
+
+          cat << 'EOF' > GlassPulse/app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:allowBackup="true"
+                  android:label="GlassPulse"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > GlassPulse/app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">GlassPulse</string>
+          </resources>
+          EOF
+
+          cat << 'EOF' > GlassPulse/app/src/main/java/com/hasan/glasspulse/MainActivity.kt
+          package com.hasan.glasspulse
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.border
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.rounded.*
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.draw.clip
+          import androidx.compose.ui.graphics.Brush
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.graphics.vector.ImageVector
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      GlassPulseScreen()
+                  }
+              }
+          }
+
+          @Composable
+          fun GlassPulseScreen() {
+              var wifiOn by remember { mutableStateOf(true) }
+              var btOn by remember { mutableStateOf(true) }
+              var silentOn by remember { mutableStateOf(false) }
+              var torchOn by remember { mutableStateOf(false) }
+              var brightness by remember { mutableFloatStateOf(0.75f) }
+              var volume by remember { mutableFloatStateOf(0.60f) }
+
+              val notifications = remember {
+                  listOf(
+                      "System UI" to "Liquid glass overlay ready",
+                      "Messages" to "2 new unread updates",
+                      "Battery" to "Adaptive power profile active"
+                  )
+              }
+
+              Box(
+                  modifier = Modifier
+                      .fillMaxSize()
+                      .background(
+                          Brush.linearGradient(
+                              colors = listOf(
+                                  Color(0xFF0A192F),
+                                  Color(0xFF172A45),
+                                  Color(0xFF090D16)
+                              )
+                          )
+                      )
+                      .padding(16.dp)
+              ) {
+                  Column(
+                      modifier = Modifier.fillMaxSize(),
+                      verticalArrangement = Arrangement.spacedBy(14.dp)
+                  ) {
+                      Text(
+                          text = "GlassPulse",
+                          color = Color.White,
+                          fontSize = 26.sp,
+                          fontWeight = FontWeight.Bold
+                      )
+
+                      Row(
+                          modifier = Modifier.fillMaxWidth(),
+                          horizontalArrangement = Arrangement.spacedBy(12.dp)
+                      ) {
+                          GlassTile(
+                              title = "Wi-Fi",
+                              active = wifiOn,
+                              icon = Icons.Rounded.Wifi,
+                              modifier = Modifier.weight(1f),
+                              onClick = { wifiOn = !wifiOn }
+                          )
+                          GlassTile(
+                              title = "Bluetooth",
+                              active = btOn,
+                              icon = Icons.Rounded.Bluetooth,
+                              modifier = Modifier.weight(1f),
+                              onClick = { btOn = !btOn }
+                          )
+                      }
+
+                      Row(
+                          modifier = Modifier.fillMaxWidth(),
+                          horizontalArrangement = Arrangement.spacedBy(12.dp)
+                      ) {
+                          GlassTile(
+                              title = "Silent",
+                              active = silentOn,
+                              icon = Icons.Rounded.NotificationsOff,
+                              modifier = Modifier.weight(1f),
+                              onClick = { silentOn = !silentOn }
+                          )
+                          GlassTile(
+                              title = "Torch",
+                              active = torchOn,
+                              icon = Icons.Rounded.FlashlightOn,
+                              modifier = Modifier.weight(1f),
+                              onClick = { torchOn = !torchOn }
+                          )
+                      }
+
+                      GlassSliderCard(
+                          label = "Brightness",
+                          value = brightness,
+                          icon = Icons.Rounded.LightMode,
+                          onValueChange = { brightness = it }
+                      )
+
+                      GlassSliderCard(
+                          label = "Volume",
+                          value = volume,
+                          icon = Icons.Rounded.VolumeUp,
+                          onValueChange = { volume = it }
+                      )
+
+                      Text(
+                          text = "Notifications",
+                          color = Color.White.copy(alpha = 0.85f),
+                          fontSize = 16.sp,
+                          fontWeight = FontWeight.SemiBold
+                      )
+
+                      LazyColumn(
+                          verticalArrangement = Arrangement.spacedBy(10.dp),
+                          modifier = Modifier.weight(1f)
+                      ) {
+                          items(notifications) { (app, msg) ->
+                              Box(
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .clip(RoundedCornerShape(20.dp))
+                                      .background(Color.White.copy(alpha = 0.10f))
+                                      .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
+                                      .padding(14.dp)
+                              ) {
+                                  Column {
+                                      Text(app, color = Color.White, fontWeight = FontWeight.Bold)
+                                      Text(msg, color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp)
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun GlassTile(
+              title: String,
+              active: Boolean,
+              icon: ImageVector,
+              modifier: Modifier = Modifier,
+              onClick: () -> toggle
+          ) {
+              val bg = if (active) Color(0xFF4CC9F0).copy(alpha = 0.28f) else Color.White.copy(alpha = 0.08f)
+              val border = if (active) Color(0xFF4CC9F0).copy(alpha = 0.70f) else Color.White.copy(alpha = 0.20f)
+              Box(
+                  modifier = modifier
+                      .height(74.dp)
+                      .clip(RoundedCornerShape(22.dp))
+                      .background(bg)
+                      .border(1.dp, border, RoundedCornerShape(22.dp))
+                      .clickable(onClick = onClick)
+                      .padding(14.dp)
+              ) {
+                  Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(10.dp),
+                      modifier = Modifier.align(Alignment.CenterStart)
+                  ) {
+                      Box(
+                          modifier = Modifier
+                              .size(36.dp)
+                              .clip(CircleShape)
+                              .background(Color.White.copy(alpha = 0.14f)),
+                          contentAlignment = Alignment.Center
+                      ) {
+                          Icon(icon, contentDescription = title, tint = Color.White)
+                      }
+                      Text(title, color = Color.White, fontWeight = FontWeight.SemiBold)
+                  }
+              }
+          }
+
+          @Composable
+          fun GlassSliderCard(
+              label: String,
+              value: Float,
+              icon: ImageVector,
+              onValueChange: (Float) -> Unit
+          ) {
+              Column(
+                  modifier = Modifier
+                      .fillMaxWidth()
+                      .clip(RoundedCornerShape(20.dp))
+                      .background(Color.White.copy(alpha = 0.10f))
+                      .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(20.dp))
+                      .padding(horizontal = 14.dp, vertical = 10.dp)
+              ) {
+                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                      Icon(icon, contentDescription = label, tint = Color.White)
+                      Text(label, color = Color.White, fontWeight = FontWeight.Medium)
+                  }
+                  Slider(
+                      value = value,
+                      onValueChange = onValueChange
+                  )
+              }
+          }
+          EOF
+
+          cd GlassPulse
+          gradle wrapper --gradle-version 8.7 --distribution-type bin
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload GlassPulse APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlassPulse-debug-apk
+          path: GlassPulse/app/build/outputs/apk/debug/app-debug.apk
